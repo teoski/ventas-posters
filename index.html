@@ -1,0 +1,74 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Control de Stock Visual</title>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+</head>
+<body>
+  <h2>📸 Escaneá un póster</h2>
+  <button onclick="startCamera()">🎥 Activar cámara</button>
+  <div id="camera-container" style="margin-top: 10px;"></div>
+  <h3>🧾 Póster detectado: <span id="result">Ninguno</span></h3>
+  <button onclick="registrarVenta()">✅ Registrar venta</button>
+  <p id="status"></p>
+
+  <script type="text/javascript">
+    const URL = "https://teachablemachine.withgoogle.com/models/7PSporqda/";
+    let model, webcam, maxPredictions;
+    let resultadoActual = "";
+
+    async function startCamera() {
+      document.getElementById("status").innerText = "🔄 Iniciando cámara...";
+      const modelURL = URL + "model.json";
+      const metadataURL = URL + "metadata.json";
+
+      model = await tmImage.load(modelURL, metadataURL);
+      maxPredictions = model.getTotalClasses();
+
+      const flip = true;
+      webcam = new tmImage.Webcam(224, 224, flip);
+      await webcam.setup();
+      await webcam.play();
+      window.requestAnimationFrame(loop);
+
+      document.getElementById("camera-container").appendChild(webcam.canvas);
+    }
+
+    async function loop() {
+      webcam.update();
+      await predict();
+      window.requestAnimationFrame(loop);
+    }
+
+    async function predict() {
+      const prediction = await model.predict(webcam.canvas);
+      let bestGuess = prediction.reduce((prev, current) => (prev.probability > current.probability) ? prev : current);
+      if (bestGuess.probability > 0.85) {
+        resultadoActual = bestGuess.className;
+        document.getElementById("result").innerText = resultadoActual;
+      }
+    }
+
+    function registrarVenta() {
+      if (!resultadoActual) {
+        document.getElementById("status").innerText = "❌ No se detectó ningún póster aún.";
+        return;
+      }
+
+      fetch("https://script.google.com/macros/s/AKfycbwzJK4_oJ-ZFNOJ6DcY2FU04Ux00QWOHDaPotbyW0TAXiH2NIjtgv8hrtRjMMnF8JxC/exec", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `producto=${encodeURIComponent(resultadoActual)}&cantidad=1`
+      })
+      .then(response => response.text())
+      .then(data => {
+        document.getElementById("status").innerText = `✅ Venta registrada de: ${resultadoActual}`;
+      })
+      .catch(error => {
+        document.getElementById("status").innerText = "❌ Error al registrar la venta.";
+      });
+    }
+  </script>
+</body>
+</html>
